@@ -1,9 +1,8 @@
-# Pytorch-based Implementation for Label-aware Graph Convolution Networks
+# Pytorch-based-Implementation-for-Label-aware-Graph-Convolution-Networks
+Source code for "PyTorch-based implementation of label-aware graph representation for multi-class trajectory pre-diction".
 
-## Train from stratch
-python train.py
+## Training and validation
+python train_2D3D.py --dataset 2D #2D: train for traffic trajectory; 3D: train for skeleton trajectory
 
-## Test with checkpoint
-python test_pred.py
 
 
