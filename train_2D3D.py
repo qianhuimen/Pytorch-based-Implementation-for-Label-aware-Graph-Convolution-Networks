@@ -1,10 +1,8 @@
 import argparse
 import json
-from multiprocessing.spawn import freeze_support
 
 from torch import optim
 from torch.utils.data import DataLoader
-import os
 
 from src.metrics import *
 from src.model import *
@@ -174,7 +172,6 @@ def start_training(data_set, num_epochs=250):
 
 
 if __name__ == '__main__':
-    freeze_support()
 
     parser = argparse.ArgumentParser()
 
@@ -199,8 +196,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.dataset == '2D':
-        path = os.path.join('.\\data', 'stanfordProcessed')
+        path = os.path.join('data', 'stanfordProcessed')
     elif args.dataset == '3D':
-        path = os.path.join('.\\data', 'cmuProcessed')
+        path = os.path.join('data', 'cmuProcessed')
 
     start_training(path, num_epochs=10)
