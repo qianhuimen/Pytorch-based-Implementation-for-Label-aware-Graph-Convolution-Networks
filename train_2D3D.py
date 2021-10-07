@@ -10,8 +10,6 @@ from src.metrics import *
 from src.model import *
 from src.utils import *
 
-#import trainingDataCreator_all
-
 def train(model, optimizer, trainingData, metrics, class_weights, labels):
     model.train()
     loss_batch = 0
