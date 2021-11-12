@@ -5,7 +5,10 @@ Source code for "PyTorch-based implementation of label-aware graph representatio
 </p>
 
 ## Training and validation
-python train_2D3D.py --dataset 2D #2D: train for traffic trajectory; 3D: train for skeleton trajectory
+The evaluation is calculated based on bi-variant distributions for the 2D traffic trajectory and l2 norm for 3D skeleton trajectory prediction.
+
+To train on traffic trajectory, run: python train_2D3D.py --dataset 2D <br>
+To train on skeleton trajectory, run: python train_2D3D.py --dataset 3D 
 
 
 
