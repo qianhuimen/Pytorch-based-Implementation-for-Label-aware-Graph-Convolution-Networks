@@ -9,6 +9,7 @@ from src.metrics import *
 from src.model import *
 from src.utils import *
 
+
 def train(model, optimizer, trainingData, metrics, class_weights, labels):
     model.train()
     loss_batch = 0
@@ -26,10 +27,10 @@ def train(model, optimizer, trainingData, metrics, class_weights, labels):
         loss_mask, V_obs, A_obs, V_tr, A_tr, obs_classes = batch
         optimizer.zero_grad()
         # Forward
-        V_obs_tmp = V_obs.permute(0, 3, 1, 2).contiguous() # 1 2 8 31
+        V_obs_tmp = V_obs.permute(0, 3, 1, 2).contiguous() 
         V_pred, _ = model(V_obs_tmp, A_obs.squeeze(), obs_classes)
 
-        V_pred = V_pred.permute(0, 2, 3, 1).contiguous() # 1 8 31 2     # output 1 frame
+        V_pred = V_pred.permute(0, 2, 3, 1).contiguous() 
 
         V_tr = V_tr.squeeze() # pred traj gt
         A_tr = A_tr.squeeze()
@@ -102,7 +103,10 @@ def valid(model, validationData, metrics, class_weights, labels):
 
 
 def graph_loss(V_pred, V_target, obs_classes, class_weights, labels):
-    return bivariate_loss(V_pred, V_target, obs_classes, class_weights, labels)
+    if args.dataset == '2D':
+        return bivariate_loss(V_pred, V_target, obs_classes, class_weights, labels)
+    if args.dataset == '3D':
+        return skeleton_loss(V_pred, V_target, obs_classes, class_weights, labels)
 
 
 def start_training(data_set, num_epochs=250):
@@ -116,13 +120,14 @@ def start_training(data_set, num_epochs=250):
 
     if args.dataset == '2D':
         feature_dim = 2
+        out_dim = 5
         scaling_factor = 10
         labels = ["Biker","Pedestrian","Car","Bus","Skater","Cart"]
     elif args.dataset == '3D':
         feature_dim = 3
+        out_dim = 3
         scaling_factor = 1000
         labels = ['LeftHip','LeftKnee','LeftFeet','LeftToe','RightHip','RightKnee','RightFeet','RightToe','Spine1','Spine2','Neck1','Neck2', 'Head','LeftClavicle','LeftHumerus','LeftRadius','LeftWrist','LeftHand','LeftFinger','RightClavicle','RightHumerus','RightRadius','RightWrist','RightHand','RightFinger']
-
     with open(os.path.join(data_set, 'classInfo.json')) as f:
         class_info = json.load(f)
         class_weights = class_info["class_weights"]
@@ -152,8 +157,8 @@ def start_training(data_set, num_epochs=250):
 
 
     # Defining the model
-    model = label_gcnn(n_layer=args.n_layer, input_feat=feature_dim, output_feat=args.output_size, seq_len=args.obs_seq_len, pred_seq_len=args.pred_seq_len,    # 5,  8
-                          kernel_size=args.kernel_size, hot_enc_length=len(labels), class_enc=args.class_enc).cuda()    # 6
+    model = label_gcnn(n_layer=args.n_layer, input_feat=feature_dim, output_feat=out_dim, seq_len=args.obs_seq_len, pred_seq_len=args.pred_seq_len,   
+                          kernel_size=args.kernel_size, hot_enc_length=len(labels)).cuda()
 
     # Training settings
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
@@ -177,25 +182,22 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     # Model specific parameters
-    parser.add_argument('--class_enc', type=bool, default=True)
-    parser.add_argument('--input_size', type=int, default=2)
-    parser.add_argument('--output_size', type=int, default=5)
-    parser.add_argument('--n_layer', type=int, default=1, help='Number of Label-GCN layers')
-    parser.add_argument('--kernel_size', type=int, default=3)
+    parser.add_argument('--n_layer', type=int, default=1, help='number of Label-GCN layers')
+    parser.add_argument('--kernel_size', type=int, default=3, help='graph convolving kernel size')
 
-    # Data specifc paremeters
-    parser.add_argument('--dataset', type=str, default='3D')
-    parser.add_argument('--obs_seq_len', type=int, default=8)
-    parser.add_argument('--pred_seq_len', type=int, default=2)
+    # Data specific paremeters
+    parser.add_argument('--dataset', type=str, default='3D', help='2D traffic prediction or 3D skeleton prediciton')
+    parser.add_argument('--obs_seq_len', type=int, default=8, help='length of the observed trajectory')
+    parser.add_argument('--pred_seq_len', type=int, default=12, help='length of the trajectory to be predicted')
 
-    # Training specifc parameters
+    # Training specific parameters
     parser.add_argument('--batch_size', type=int, default=64,
                         help='minibatch size')
     parser.add_argument('--lr', type=float, default=0.0001,
                         help='learning rate')
 
     args = parser.parse_args()
-
+    
     if args.dataset == '2D':
         path = os.path.join('data', 'stanfordProcessed')
     elif args.dataset == '3D':
