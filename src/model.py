@@ -18,10 +18,11 @@ class ConvTemporalGraphical(nn.Module):
             Default: 1
         bias (bool, optional): If ``True``, adds a learnable bias to the output.
             Default: ``True``
-    Shape:
+    Inputs:
         - Input[0]: Input graph sequence in :math:`(N, in_channels, T_{in}, V)` format
         - Input[1]: Input graph adjacency matrix in :math:`(K, V, V)` format
-        - Output[0]: Outpu graph sequence in :math:`(N, out_channels, T_{out}, V)` format
+    Returns:
+        - Output[0]: Output graph sequence in :math:`(N, out_channels, T_{out}, V)` format
         - Output[1]: Graph adjacency matrix for output data in :math:`(K, V, V)` format
         where
             :math:`N` is a batch size,
@@ -61,16 +62,17 @@ class seq_gcn(nn.Module):
     # Source: https://github.com/abduallahmohamed/Social-STGCNN/blob/master/model.py
     r"""Applies a spatial temporal graph convolution over an input graph sequence.
     Args:
-        in_channels (int): Number of channels in the input sequence data
-        out_channels (int): Number of channels produced by the convolution
+        in_channels (int): Feature size of each node in the input sequence data
+        out_channels (int): Feature size of each node produced by the convolution
         kernel_size (tuple): Size of the temporal convolving kernel and graph convolving kernel
         stride (int, optional): Stride of the temporal convolution. Default: 1
         dropout (int, optional): Dropout rate of the final output. Default: 0
         residual (bool, optional): If ``True``, applies a residual mechanism. Default: ``True``
-    Shape:
+    Inputs:
         - Input[0]: Input graph sequence in :math:`(N, in_channels, T_{in}, V)` format
         - Input[1]: Input graph adjacency matrix in :math:`(K, V, V)` format
-        - Output[0]: Outpu graph sequence in :math:`(N, out_channels, T_{out}, V)` format
+    Returns:
+        - Output[0]: Output graph sequence in :math:`(N, out_channels, T_{out}, V)` format
         - Output[1]: Graph adjacency matrix for output data in :math:`(K, V, V)` format
         where
             :math:`N` is a batch size,
@@ -89,7 +91,6 @@ class seq_gcn(nn.Module):
                  residual=True):
         super(seq_gcn, self).__init__()
 
-        #         print("outstg",out_channels)
 
         assert len(kernel_size) == 2
         assert kernel_size[0] % 2 == 1
@@ -142,30 +143,48 @@ class seq_gcn(nn.Module):
 
 
 class label_gcnn(nn.Module):
+    r"""Label-aware spatial temporal graph convolutional network by encoding the node label into the graph adjacency.
+    Args:
+        n_layer (int): Number of layers in the spatial temporal graph convolutional network
+        input_feat (int): Input feature size of each node in the sequence data (2 for 2D and 3 for 3D)
+        output_feat (int): Output feature size of each node produced by the convolution
+        seq_len (int): Length of the observed trajectory
+        pred_seq_len (int): Length of the trajectory to be predicted
+        kernel_size (int): Size of the graph convolving kernel
+        hot_enc_length (int): Number of classes in the whole sequence data for one-hot embedding 
+    Inputs:
+        - Input[0]: Input graph sequence in :math:`(N, input_feat, seq_len, V)` format
+        - Input[1]: Input graph adjacency matrix in :math:`(K, V, V)` format
+    Returns:
+        - Output[0]: Output graph sequence in :math:`(N, output_feat, pred_seq_len, V)` format
+        - Output[1]: Graph adjacency matrix for output data in :math:`(K, V, V)` format
+        where
+            :math:`N` is a batch size,
+            :math:`K` is the spatial kernel size,
+            :math:`V` is the number of graph nodes. 
+    """
     def __init__(self, n_layer=1,  input_feat=2, output_feat=5,
-                 seq_len=8, pred_seq_len=2, kernel_size=3, hot_enc_length=1, class_enc=True):
+                 seq_len=8, pred_seq_len=2, kernel_size=3, hot_enc_length=1):
         super(label_gcnn, self).__init__()
 
-        self.class_enc = class_enc
-        if class_enc:
-            self.v_norm = nn.Sequential(
-                nn.Linear(in_features=seq_len, out_features=seq_len),
-                nn.PReLU(),
-            )
-            self.a_norm = nn.Sequential(
-                nn.Linear(in_features=seq_len, out_features=seq_len),
-                nn.PReLU(),
-            )
+        self.v_norm = nn.Sequential(
+            nn.Linear(in_features=seq_len, out_features=seq_len),
+            nn.PReLU(),
+        )
+        self.a_norm = nn.Sequential(
+            nn.Linear(in_features=seq_len, out_features=seq_len),
+            nn.PReLU(),
+        )
 
-            self.a_lin1 = nn.Sequential(
-                nn.Linear(in_features=2 * hot_enc_length, out_features=seq_len),
-                nn.PReLU(),
-            )
-            self.a_lin2 = nn.Sequential(
-                nn.Linear(in_features=2 * seq_len, out_features=seq_len),
-                nn.PReLU(),
+        self.a_lin1 = nn.Sequential(
+            nn.Linear(in_features=2 * hot_enc_length, out_features=seq_len),
+            nn.PReLU(),
+        )
+        self.a_lin2 = nn.Sequential(
+            nn.Linear(in_features=2 * seq_len, out_features=seq_len),
+            nn.PReLU(),
 
-            )
+        )
 
         self.n_layer = n_layer
 
@@ -174,25 +193,20 @@ class label_gcnn(nn.Module):
         for j in range(1, self.n_layer):
             self.seq_gcns.append(seq_gcn(output_feat, output_feat, (kernel_size, seq_len)))
 
-        #self.tpcnns = nn.ModuleList()
-        #self.tpcnns.append(nn.Conv2d(seq_len, 1, 3, padding=1))
-        self.pred_embed = nn.Sequential(nn.Linear(seq_len, pred_seq_len, bias=True), nn.PReLU()) # predict 1 step further
+        self.pred_embed = nn.Sequential(nn.Linear(seq_len, pred_seq_len, bias=True), nn.PReLU()) 
 
 
     def forward(self, v, a, hot_enc): 
-        # pedestrians that are within 1 pixel have same similarity as person they are next to
-        # a = torch.where(a > 1, torch.ones_like(a), a)
-        if self.class_enc:
-            #normalise inputs with layers
-            v = self.v_norm(v.permute(0, 1, 3, 2)).permute(0, 1, 3, 2)
-            a = self.a_norm(a.permute(1, 2, 0)).permute(2, 0, 1)
-            #combine class labels with adjacency matrix
-            hot_enc = hot_enc.repeat(a.shape[1], 1, 1)
-            hot_enc = torch.cat((hot_enc.rot90(k=-1), hot_enc), 2)
+        # normalise inputs with layers
+        v = self.v_norm(v.permute(0, 1, 3, 2)).permute(0, 1, 3, 2)
+        a = self.a_norm(a.permute(1, 2, 0)).permute(2, 0, 1)
+        # generate embedding of the class labels
+        hot_enc = hot_enc.repeat(a.shape[1], 1, 1)
+        hot_enc = torch.cat((hot_enc.rot90(k=-1), hot_enc), 2)
 
-            #linear
-            c = self.a_lin1(hot_enc).permute(2, 0, 1)# 8 31 31 #.squeeze().repeat(a.shape[0], 1, 1)
-            a = self.a_lin2(torch.cat((a, c)).permute(1, 2, 0)).permute(2, 0, 1) # 8 31 31
+        # combine class labels with adjacency matrix
+        c = self.a_lin1(hot_enc).permute(2, 0, 1)
+        a = self.a_lin2(torch.cat((a, c)).permute(1, 2, 0)).permute(2, 0, 1)
 
         for k in range(self.n_layer):
             v, a = self.seq_gcns[k](v, a)
@@ -203,4 +217,3 @@ class label_gcnn(nn.Module):
 
 
         return v, a
-
