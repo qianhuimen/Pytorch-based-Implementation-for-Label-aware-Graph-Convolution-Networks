@@ -9,6 +9,3 @@ The evaluation is calculated based on bi-variant distributions for the 2D traffi
 
 To train on traffic trajectory, run: python train_2D3D.py --dataset 2D <br>
 To train on skeleton trajectory, run: python train_2D3D.py --dataset 3D 
-
-
-
