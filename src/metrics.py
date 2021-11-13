@@ -6,6 +6,9 @@ from src import utils
 
 
 def ade(predAll, targetAll, count_):
+    """
+    Metric for Average Displacement Error: calculating the average error from the sampled trajectory (predAll) with the ground truth trajectory (targetAll)
+    """
     All = len(predAll)
     sum_all = 0
     for s in range(All):
@@ -24,6 +27,9 @@ def ade(predAll, targetAll, count_):
 
 
 def fde(predAll, targetAll, count_):
+    """
+    Metric for Final Displacement Error: calculating the minimum error from the sampled trajectory (predAll) with the ground truth trajectory (targetAll)
+    """
     All = len(predAll)
     sum_all = 0
     for s in range(All):
@@ -71,8 +77,15 @@ def closer_to_zero(current, new_v):
 
 
 def bivariate_loss(V_pred, V_trgt, obs_classes, class_weights, labels):
-    # mux, muy, sx, sy, corr
-    # assert V_pred.shape == V_trgt.shape
+    """
+    Calculate loss from the estimated bi-variant distributions for every future time step
+    Args: 
+        V_pred: Predicted trajectory sequence in :math:`(max_nodes, node_dim, V)` format
+        V_trgt: Target trajectory sequence in :math:`(max_nodes, node_dim, seq_len)` format
+        obs_classes: The one-hot embedding of the object trajectories
+        class_weights: Weights balancing the different classes
+        labels: All the label categories of the trajectory
+    """
 
     normx = V_trgt[:, :, 0] - V_pred[:, :, 0]
     normy = V_trgt[:, :, 1] - V_pred[:, :, 1]
@@ -96,9 +109,34 @@ def bivariate_loss(V_pred, V_trgt, obs_classes, class_weights, labels):
 
     # Numerical stability
     epsilon = 1e-20
-
+    
     result = -torch.log(torch.clamp(result, min=epsilon))
     result = torch.mean(result)
+    
+    counts = [0] * len(labels)
+    for enc in obs_classes:
+        counts[utils.get_index_of_one_hot(enc.tolist(), labels)] += 1
+    weight_sum = 0
+    for i in range(len(counts)):
+        weight_sum += (counts[i] * class_weights[i])
+    return torch.mul(result, (weight_sum / sum(counts)))
+
+def skeleton_loss(V_pred, V_trgt, obs_classes, class_weights, labels):
+    """
+    Calculate loss from the estimated 3D skeleton for every future time step
+    Args: 
+        V_pred: Predicted trajectory sequence in :math:`(max_nodes, node_dim, V)` format
+        V_trgt: Target trajectory sequence in :math:`(max_nodes, node_dim, seq_len)` format
+        obs_classes: The one-hot embedding of the object trajectories
+        class_weights: Weights balancing the different classes
+        labels: All the label categories of the trajectory
+    """
+    normx = V_trgt[:, :, 0] - V_pred[:, :, 0]
+    normy = V_trgt[:, :, 1] - V_pred[:, :, 1]
+    normz = V_trgt[:, :, 2] - V_pred[:, :, 2]
+
+    loss = torch.norm(V_trgt - V_pred, dim=0)
+    result = torch.mean(loss)
 
     counts = [0] * len(labels)
     for enc in obs_classes:
