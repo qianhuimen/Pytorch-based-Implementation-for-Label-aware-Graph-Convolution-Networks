@@ -49,12 +49,28 @@ def centerCoord(coordArray):
 
 
 def convertToRelativeSequence(sequence):
+    """
+    Transfer the absolute trajectory to relative trajectory between frames
+    """
     rel_curr_ped_seq = np.zeros(sequence.shape)
     rel_curr_ped_seq[:, :, 1:] = sequence[:, :, 1:] - [sequence[:, :, :-1]]
     return rel_curr_ped_seq
 
 
 def seq_to_graph(seq_, seq_rel, norm_lap_matr=True, node_dim=2):
+    """
+    Convert the trajectory into the graph format
+    Inputs: 
+        seq_: Absolute trajectory sequence in :math:`(max_nodes, node_dim, seq_len)` format
+        seq_rel: Relative trajectory sequence in :math:`(max_nodes, node_dim, seq_len)` format
+    Returns:
+    - V: Converted graph sequence in :math:`(seq_len, max_nodes, node_dim)` format
+    - A: Graph adjacency matrix for the graph sequence in :math:`(seq_len, max_nodes, max_nodes)` format
+        where
+            :math:`seq_len` is the length of trajectory sequence,
+            :math:`max_nodes` is the maximum number of objects in the trajectory,
+            :math:`node_dim` is the feature size of each object.
+    """
     seq_ = seq_.squeeze()
     seq_rel = seq_rel.squeeze()
     seq_len = seq_.shape[2]
@@ -146,7 +162,7 @@ class TrajectoryDataset(Dataset):
         - min_ped: Minimum number of pedestrians that should be in a seqeunce
         - delim: Delimiter in the dataset files
         - dim: 2D or 3D data
-        -sf: scaling factor for the dataset
+        - sf: scaling factor for the dataset
         """
         super(TrajectoryDataset, self).__init__()
         self.max_peds_in_frame = 0
@@ -198,12 +214,11 @@ class TrajectoryDataset(Dataset):
                     curr_ped_seq[:, :-1] = np.round(np.asarray(curr_ped_seq[:, :-1], dtype=float), decimals=4)
                     pad_front = frames.index(curr_ped_seq[0, 0]) - idx
                     pad_end = frames.index(curr_ped_seq[-1, 0]) - idx + 1
-                    curr_ped_seq = np.transpose(curr_ped_seq[:, 2:])    # [[x_pos,...],[y_pos,...],['biker','biker'...]] # 3, #frames
+                    curr_ped_seq = np.transpose(curr_ped_seq[:, 2:])    # [[x_pos,...],[y_pos,...],['biker','biker'...]] 
                     classEncoding = np.asarray(one_hot_encoding(label)[curr_ped_seq[-1][0]], dtype=float)
-                    curr_ped_seq = np.array(curr_ped_seq[:-1], dtype=float)  # position: [[x_pos,...],[y_pos,...]] # 2, #frames
+                    curr_ped_seq = np.array(curr_ped_seq[:-1], dtype=float)  # position: [[x_pos,...],[y_pos,...]]
 
                     curr_ped_seq = curr_ped_seq/sf
-
                     if ((curr_ped_seq.shape[1] != self.seq_len) or (pad_end - pad_front != self.seq_len)): # if the seq_len != 20, ignore
                         continue
                     # Make coordinates relative
@@ -220,14 +235,14 @@ class TrajectoryDataset(Dataset):
                     num_peds_considered += 1
                 if num_peds_considered > min_ped:
                     non_linear_ped += _non_linear_ped
-                    num_peds_in_seq.append(num_peds_considered) # e.g.[16,7,...]
+                    num_peds_in_seq.append(num_peds_considered) 
                     loss_mask_list.append(curr_loss_mask[:num_peds_considered])
                     seq_list.append(curr_seq[:num_peds_considered])   # seq_list: e.g. [[16,2,20],[7,2,20]...] #nodes are different for each seq
                     seq_list_rel.append(curr_seq_rel[:num_peds_considered])
                     seq_list_class.append(curr_seq_class[:num_peds_considered])
         self.num_seq = len(seq_list)
         if not (np.array_equal(seq_list, [])):
-            seq_list = np.concatenate(seq_list, axis=0) # concate all seq (331369, 2, 20)
+            seq_list = np.concatenate(seq_list, axis=0) # concate all seq
             seq_list_rel = np.concatenate(seq_list_rel, axis=0)
             seq_list_class = np.concatenate(seq_list_class, axis=0) 
             loss_mask_list = np.concatenate(loss_mask_list, axis=0) 
